@@ -312,8 +312,14 @@ VIS_PARAMS_DIFF = {
 }
 
 ALL_KENYA_COUNTIES_OPTIONS = [
-    "Nakuru", "Baringo", "Laikipia", "Trans Nzoia", "Kakamega", "Busia",
-    "Meru", "Nandi", "Siaya", "Vihiga", "Nyandarua", "Tharaka", "Kericho",
+    "Baringo", "Bomet", "Bungoma", "Busia", "Elgeyo-Marakwet", "Embu",
+    "Garissa", "Homa Bay", "Isiolo", "Kajiado", "Kakamega", "Kericho",
+    "Kiambu", "Kilifi", "Kirinyaga", "Kisii", "Kisumu", "Kitui", "Kwale",
+    "Laikipia", "Lamu", "Machakos", "Makueni", "Mandera", "Marsabit",
+    "Meru", "Migori", "Mombasa", "Murang'a", "Nairobi", "Nandi", "Narok",
+    "Nakuru", "Nyandarua", "Nyamira", "Nyeri", "Samburu", "Siaya",
+    "Taita-Taveta", "Tana River", "Tharaka-Nithi", "Trans Nzoia", "Turkana",
+    "Uasin Gishu", "Vihiga", "Wajir", "West Pokot",
 ]
 
 DATE_START_S2    = "2020-01-01"
@@ -680,6 +686,14 @@ county_selection = st.sidebar.multiselect(
     options=ALL_KENYA_COUNTIES_OPTIONS,
     default=ALL_KENYA_COUNTIES_OPTIONS,
 )
+_extra_raw = st.sidebar.text_input(
+    "Add unlisted counties",
+    placeholder="e.g. Nairobi, Kisumu",
+    help="Comma-separated names not in the list above. Must match the shapeName field in the geoBoundaries dataset exactly.",
+)
+if _extra_raw:
+    _extra = [c.strip() for c in _extra_raw.split(",") if c.strip()]
+    county_selection = list(dict.fromkeys(county_selection + _extra))  # deduplicate, preserve order
 
 st.sidebar.markdown("**Sampling**")
 num_pixels  = st.sidebar.slider("Sample pixels", 1000, 20000, 10000, step=1000)
