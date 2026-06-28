@@ -379,12 +379,13 @@ def init_earth_engine(project_id: str) -> tuple[bool, str]:
     import json as _json
 
     # 1. Service-account path — Streamlit Cloud deployment via st.secrets
-    if "gee" in st.secrets and "credentials" in st.secrets["gee"]:
+    _sa_creds = st.secrets.get("gee", {}).get("credentials", "").strip()
+    if _sa_creds:
         try:
-            cred_dict = _json.loads(st.secrets["gee"]["credentials"])
+            cred_dict = _json.loads(_sa_creds)
             credentials = ee.ServiceAccountCredentials(
                 email=cred_dict["client_email"],
-                key_data=st.secrets["gee"]["credentials"],
+                key_data=_sa_creds,
             )
             ee.Initialize(credentials=credentials, project=project_id)
             return True, "Earth Engine initialized via service account."
