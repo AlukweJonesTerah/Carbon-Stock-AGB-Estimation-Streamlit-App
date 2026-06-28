@@ -1,0 +1,9 @@
+streamlit>=1.36
+earthengine-api>=0.1.400
+geemap>=0.32
+folium>=0.15
+streamlit-folium>=0.21
+pandas>=2.0
+numpy>=1.24
+matplotlib>=3.7
+xyzservices<2024
