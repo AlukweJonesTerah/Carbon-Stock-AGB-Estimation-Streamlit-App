@@ -355,11 +355,32 @@ mpl.rcParams.update({
 # ----------------------------------------------------------------------------
 # EARTH ENGINE INITIALIZATION
 # ----------------------------------------------------------------------------
-def init_earth_engine(project_id: str) -> tuple[bool, str]:
+def _ee_credentials_from_file():
+    """Load OAuth2 credentials from the earthengine credentials file (no gcloud needed)."""
+    import pathlib, json as _json
+    cred_file = pathlib.Path.home() / ".config" / "earthengine" / "credentials"
+    if not cred_file.exists():
+        return None
     try:
-        # Service-account path: credentials stored in st.secrets (Streamlit Cloud deployment)
-        if "gee" in st.secrets and "credentials" in st.secrets["gee"]:
-            import json as _json
+        import google.oauth2.credentials
+        data = _json.loads(cred_file.read_text())
+        return google.oauth2.credentials.Credentials(
+            token=None,
+            refresh_token=data["refresh_token"],
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=data["client_id"],
+            client_secret=data["client_secret"],
+        )
+    except Exception:
+        return None
+
+
+def init_earth_engine(project_id: str) -> tuple[bool, str]:
+    import json as _json
+
+    # 1. Service-account path — Streamlit Cloud deployment via st.secrets
+    if "gee" in st.secrets and "credentials" in st.secrets["gee"]:
+        try:
             cred_dict = _json.loads(st.secrets["gee"]["credentials"])
             credentials = ee.ServiceAccountCredentials(
                 email=cred_dict["client_email"],
@@ -367,17 +388,32 @@ def init_earth_engine(project_id: str) -> tuple[bool, str]:
             )
             ee.Initialize(credentials=credentials, project=project_id)
             return True, "Earth Engine initialized via service account."
+        except Exception as e:
+            return False, f"Service account auth failed: {e}"
 
-        # Local path: use credentials cached by `earthengine authenticate`
-        ee.Initialize(project=project_id)
-        return True, "Earth Engine initialized."
-    except Exception:
+    # 2. Explicit credentials file — written by `earthengine authenticate` (no gcloud needed)
+    local_creds = _ee_credentials_from_file()
+    if local_creds is not None:
         try:
-            ee.Authenticate()
-            ee.Initialize(project=project_id)
+            ee.Initialize(credentials=local_creds, project=project_id)
+            return True, "Earth Engine initialized."
+        except Exception:
+            pass  # fall through to browser auth
+
+    # 3. Browser OAuth — opens a tab, no gcloud required
+    try:
+        ee.Authenticate(auth_mode="localhost", force=False)
+        local_creds = _ee_credentials_from_file()
+        if local_creds is not None:
+            ee.Initialize(credentials=local_creds, project=project_id)
             return True, "Earth Engine authenticated and initialized."
-        except Exception as e2:
-            return False, f"Could not initialize Earth Engine: {e2}"
+        ee.Initialize(project=project_id)
+        return True, "Earth Engine authenticated and initialized."
+    except Exception as e:
+        return False, (
+            f"Authentication failed ({e}). "
+            "Open a terminal and run: earthengine authenticate --auth_mode notebook"
+        )
 
 
 # ----------------------------------------------------------------------------
