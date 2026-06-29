@@ -698,15 +698,18 @@ with st.sidebar.expander("Earth Engine Setup", expanded="ee_ready" not in st.ses
         project_id = st.text_input("GEE Cloud Project ID", value=default_project,
                                    placeholder="my-gee-project")
         if st.button("Connect to Earth Engine", width='stretch'):
-            with st.spinner("Connecting…"):
-                ok, msg = init_earth_engine(project_id)
-            if ok:
-                st.session_state["ee_ready"] = True
-                st.session_state["ee_project_id"] = project_id
-                st.success(msg)
+            if not project_id:
+                st.error("Please enter a GEE Cloud Project ID.")
             else:
-                st.session_state["ee_ready"] = False
-                st.error(msg)
+                with st.spinner("Connecting…"):
+                    ok, msg = init_earth_engine(project_id)
+                if ok:
+                    st.session_state["ee_ready"] = True
+                    st.session_state["ee_project_id"] = project_id
+                    st.success(msg)
+                else:
+                    st.session_state["ee_ready"] = False
+                    st.error(msg)
 
 ee_ready = st.session_state.get("ee_ready", False)
 
