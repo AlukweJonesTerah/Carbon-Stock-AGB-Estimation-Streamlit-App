@@ -955,6 +955,22 @@ model_spread = (
     .rename("Model_Spread")
 )
 
+# Simplified geometry used for clipping display images — complex county
+# polygon vertices slow down getMapId(); 1 km tolerance is fine for tiles.
+_display_geom = selected_fc.geometry().simplify(maxError=1000)
+
+
+def safe_add_layer(map_obj, image, vis, label, shown=True):
+    """Add an EE image layer, showing a warning instead of crashing on timeout."""
+    try:
+        map_obj.addLayer(image, vis, label, shown)
+    except Exception as _e:
+        st.warning(
+            f"Map layer **{label}** could not be rendered "
+            f"(Earth Engine timed out). Try a smaller study area or fewer sample pixels. "
+            f"Detail: `{_e}`"
+        )
+
 MODEL_IMAGES = {
     "Random Forest":           estimated_carbon_rf,
     "Gradient Tree Boosting":  estimated_carbon_gtb,
@@ -997,7 +1013,7 @@ with tab_map:
         m.centerObject(selected_fc.geometry(), 9)
         if show_counties_outline:
             m.addLayer(selected_fc, {"color": "FF4444"}, "Selected Counties", True)
-        m.addLayer(display_image.clip(selected_fc), vis, layer_label, True)
+        safe_add_layer(m, display_image.clip(_display_geom), vis, layer_label, True)
         m.add_colorbar(vis, label="t C/ha" if not show_agb else "Mg/ha AGB")
         m.to_streamlit(height=560)
 
@@ -1034,29 +1050,37 @@ with tab_compare:
 
     # ── RF vs GTB difference map ─────────────────────────────────────────────
     st.markdown("**RF vs. GTB — Absolute Difference**")
-    carbon_difference = (
-        estimated_carbon_rf.subtract(estimated_carbon_gtb).abs().rename("Carbon_Difference_RF_GTB")
-    )
-    m2 = geemap.Map(center=[0.3, 36.0], zoom=7)
-    m2.centerObject(selected_fc.geometry(), 9)
-    m2.addLayer(carbon_difference.clip(selected_fc), VIS_PARAMS_DIFF, "|RF − GTB| (t C/ha)", True)
-    m2.add_colorbar(VIS_PARAMS_DIFF, label="|RF − GTB| (t C/ha)")
-    m2.to_streamlit(height=420)
-    st.caption("Larger values = greater disagreement between Random Forest and Gradient Tree Boosting.")
+    if st.button("Render RF vs GTB difference map", key="btn_diff_map"):
+        st.session_state["show_diff_map"] = True
+    if st.session_state.get("show_diff_map"):
+        carbon_difference = (
+            estimated_carbon_rf.subtract(estimated_carbon_gtb).abs().rename("Carbon_Difference_RF_GTB")
+        )
+        with st.spinner("Rendering difference map…"):
+            m2 = geemap.Map(center=[0.3, 36.0], zoom=7)
+            m2.centerObject(selected_fc.geometry(), 9)
+            safe_add_layer(m2, carbon_difference.clip(_display_geom), VIS_PARAMS_DIFF, "|RF − GTB| (t C/ha)", True)
+            m2.add_colorbar(VIS_PARAMS_DIFF, label="|RF − GTB| (t C/ha)")
+            m2.to_streamlit(height=420)
+        st.caption("Larger values = greater disagreement between Random Forest and Gradient Tree Boosting.")
 
     st.markdown("---")
 
     # ── 3-model spread map ───────────────────────────────────────────────────
     st.markdown("**3-Model Spread — Pixel-wise Standard Deviation (RF, GTB, SVM)**")
-    m3 = geemap.Map(center=[0.3, 36.0], zoom=7)
-    m3.centerObject(selected_fc.geometry(), 9)
-    m3.addLayer(model_spread.clip(selected_fc), VIS_PARAMS_SPREAD, "Model Spread σ (t C/ha)", True)
-    m3.add_colorbar(VIS_PARAMS_SPREAD, label="σ (t C/ha)")
-    m3.to_streamlit(height=420)
-    st.caption(
-        "Per-pixel standard deviation across all three model predictions. "
-        "Dark blue = high uncertainty; light = strong model agreement."
-    )
+    if st.button("Render 3-model spread map", key="btn_spread_map"):
+        st.session_state["show_spread_map"] = True
+    if st.session_state.get("show_spread_map"):
+        with st.spinner("Rendering spread map…"):
+            m3 = geemap.Map(center=[0.3, 36.0], zoom=7)
+            m3.centerObject(selected_fc.geometry(), 9)
+            safe_add_layer(m3, model_spread.clip(_display_geom), VIS_PARAMS_SPREAD, "Model Spread σ (t C/ha)", True)
+            m3.add_colorbar(VIS_PARAMS_SPREAD, label="σ (t C/ha)")
+            m3.to_streamlit(height=420)
+        st.caption(
+            "Per-pixel standard deviation across all three model predictions. "
+            "Dark blue = high uncertainty; light = strong model agreement."
+        )
 
 # ── TAB: VALIDATION ──────────────────────────────────────────────────────────
 with tab_validation:
