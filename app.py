@@ -375,6 +375,43 @@ def _ee_credentials_from_file():
         return None
 
 
+def _is_cloud_deployment() -> bool:
+    """Return True when running on Streamlit Cloud or any headless server."""
+    cloud_signals = [
+        os.environ.get("STREAMLIT_SHARING_MODE"),
+        os.environ.get("IS_CLOUD_ENV"),
+        os.environ.get("STREAMLIT_SERVER_HEADLESS"),
+    ]
+    return any(v for v in cloud_signals)
+
+
+_STREAMLIT_CLOUD_SETUP = """
+**Production deployment detected — service account credentials required.**
+
+Add the following to your app's **Streamlit Cloud → Settings → Secrets**:
+
+```toml
+[gee]
+credentials = '''
+{
+  "type": "service_account",
+  "project_id": "your-project-id",
+  "private_key_id": "...",
+  "private_key": "-----BEGIN RSA PRIVATE KEY-----\\n...\\n-----END RSA PRIVATE KEY-----\\n",
+  "client_email": "your-sa@your-project.iam.gserviceaccount.com",
+  ...
+}
+'''
+```
+
+Steps:
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) → IAM & Admin → Service Accounts
+2. Create a service account and grant it the **Earth Engine Resource Viewer** role
+3. Create a JSON key and paste the full JSON as the `credentials` value above
+4. Redeploy the app
+"""
+
+
 def init_earth_engine(project_id: str) -> tuple[bool, str]:
     import json as _json
 
@@ -392,6 +429,11 @@ def init_earth_engine(project_id: str) -> tuple[bool, str]:
         except Exception as e:
             return False, f"Service account auth failed: {e}"
 
+    # On Streamlit Cloud there is no home directory with credentials and no
+    # browser to complete OAuth — skip straight to a clear setup message.
+    if _is_cloud_deployment():
+        return False, _STREAMLIT_CLOUD_SETUP
+
     # 2. Explicit credentials file — written by `earthengine authenticate` (no gcloud needed)
     local_creds = _ee_credentials_from_file()
     if local_creds is not None:
@@ -401,7 +443,7 @@ def init_earth_engine(project_id: str) -> tuple[bool, str]:
         except Exception:
             pass  # fall through to browser auth
 
-    # 3. Browser OAuth — opens a tab, no gcloud required
+    # 3. Browser OAuth — only attempted on local machines
     try:
         ee.Authenticate(auth_mode="localhost", force=False)
         local_creds = _ee_credentials_from_file()
@@ -410,10 +452,18 @@ def init_earth_engine(project_id: str) -> tuple[bool, str]:
             return True, "Earth Engine authenticated and initialized."
         ee.Initialize(project=project_id)
         return True, "Earth Engine authenticated and initialized."
+    except OSError as e:
+        if getattr(e, "errno", None) == 98 or "Address already in use" in str(e):
+            return False, (
+                "Could not start the local OAuth server (port already in use). "
+                "Run `earthengine authenticate --auth_mode notebook` in a terminal, "
+                "then restart the app."
+            )
+        return False, f"Authentication failed: {e}"
     except Exception as e:
         return False, (
             f"Authentication failed ({e}). "
-            "Open a terminal and run: earthengine authenticate --auth_mode notebook"
+            "Run `earthengine authenticate` in a terminal and restart the app."
         )
 
 
@@ -557,7 +607,7 @@ def sample_and_split(_project_id, county_selection, num_pixels, train_split, see
 
     combined_dataset = predictor_variables.addBands(final_biomass)
     all_sampled = combined_dataset.sample(
-        region=selected_fc.geometry(), scale=100,
+        region=selected_fc.geometry(), scale=300,
         numPixels=num_pixels, geometries=True, tileScale=16,
     )
     all_sampled  = all_sampled.randomColumn(seed=seed)
@@ -595,7 +645,10 @@ def train_models(_project_id, county_selection, num_pixels, train_split, seed,
         features=training_set, classProperty=dependent_variable,
         inputProperties=predictor_band_names,
     )
-    rf_importance = rf_model.explain().getInfo()
+    try:
+        rf_importance = rf_model.explain().getInfo()
+    except Exception:
+        rf_importance = None
 
     svm_classifier = ee.Classifier.libsvm(
         svmType="EPSILON_SVR", kernelType="RBF", gamma=svm_gamma, cost=svm_cost,
@@ -613,7 +666,10 @@ def train_models(_project_id, county_selection, num_pixels, train_split, seed,
         features=training_set, classProperty=dependent_variable,
         inputProperties=predictor_band_names,
     )
-    gtb_importance = gtb_model.explain().getInfo()
+    try:
+        gtb_importance = gtb_model.explain().getInfo()
+    except Exception:
+        gtb_importance = None
 
     return {
         "rf_model":  rf_model,  "svm_model": svm_model, "gtb_model": gtb_model,
@@ -682,19 +738,31 @@ st.sidebar.markdown("""
 # Auto-connect via service account when running on Streamlit Cloud
 if "gee" in st.secrets and not st.session_state.get("ee_ready"):
     _pid = st.secrets["gee"].get("project_id", "")
-    _ok, _ = init_earth_engine(_pid)
+    _ok, _msg = init_earth_engine(_pid)
     if _ok:
         st.session_state["ee_ready"] = True
         st.session_state["ee_project_id"] = _pid
+    else:
+        st.session_state["ee_ready"] = False
+        st.session_state["ee_init_error"] = _msg
+elif _is_cloud_deployment() and not st.session_state.get("ee_ready"):
+    # Cloud deployment but no secrets configured — surface setup guide immediately.
+    st.session_state["ee_ready"] = False
+    st.session_state["ee_init_error"] = _STREAMLIT_CLOUD_SETUP
 
-with st.sidebar.expander("Earth Engine Setup", expanded="ee_ready" not in st.session_state):
+with st.sidebar.expander("Earth Engine Setup", expanded=not st.session_state.get("ee_ready", False)):
     if st.session_state.get("ee_ready") and "gee" in st.secrets:
         st.success("Connected via service account.")
+    elif _is_cloud_deployment():
+        err = st.session_state.get("ee_init_error", _STREAMLIT_CLOUD_SETUP)
+        st.warning(err)
     else:
         st.markdown(
             "Requires a **Google Earth Engine** account with a registered Cloud project. "
             "Run `earthengine authenticate` once in a terminal, then enter your project ID below."
         )
+        if st.session_state.get("ee_init_error"):
+            st.error(st.session_state["ee_init_error"])
         default_project = st.session_state.get("ee_project_id", "")
         project_id = st.text_input("GEE Cloud Project ID", value=default_project,
                                    placeholder="my-gee-project")
@@ -707,9 +775,11 @@ with st.sidebar.expander("Earth Engine Setup", expanded="ee_ready" not in st.ses
                 if ok:
                     st.session_state["ee_ready"] = True
                     st.session_state["ee_project_id"] = project_id
+                    st.session_state.pop("ee_init_error", None)
                     st.success(msg)
                 else:
                     st.session_state["ee_ready"] = False
+                    st.session_state["ee_init_error"] = msg
                     st.error(msg)
 
 ee_ready = st.session_state.get("ee_ready", False)
@@ -737,19 +807,19 @@ if _extra_raw:
     county_selection = list(dict.fromkeys(county_selection + _extra))  # deduplicate, preserve order
 
 st.sidebar.markdown("**Sampling**")
-num_pixels  = st.sidebar.slider("Sample pixels", 1000, 20000, 10000, step=1000)
+num_pixels  = st.sidebar.slider("Sample pixels", 500, 10000, 3000, step=500)
 train_split = st.sidebar.slider("Training split", 0.5, 0.9, 0.7, step=0.05,
                                  help="Fraction of pixels used for training")
 seed        = st.sidebar.number_input("Random seed", value=0, step=1)
 
 with st.sidebar.expander("Model Hyperparameters"):
     st.markdown("**Random Forest**")
-    rf_trees          = st.slider("Trees", 50, 500, 300, step=10, key="rf_trees")
+    rf_trees          = st.slider("Trees", 50, 500, 100, step=10, key="rf_trees")
     rf_vars_per_split = st.slider("Variables per split", 1, 15, 6, key="rf_vars")
     rf_min_leaf       = st.slider("Min leaf population", 1, 50, 10, key="rf_leaf")
 
     st.markdown("**Gradient Tree Boosting**")
-    gtb_trees         = st.slider("Trees", 50, 500, 300, step=10, key="gtb_trees")
+    gtb_trees         = st.slider("Trees", 50, 500, 100, step=10, key="gtb_trees")
     gtb_shrinkage     = st.slider("Shrinkage", 0.001, 0.1, 0.005, step=0.001,
                                    format="%.3f", key="gtb_shrink")
     gtb_sampling_rate = st.slider("Sampling rate", 0.1, 1.0, 0.6, step=0.05, key="gtb_rate")
@@ -1101,9 +1171,16 @@ with tab_importance:
 
     imp_choice = st.radio("Model:", ["Random Forest", "Gradient Tree Boosting"], horizontal=True)
     raw_importance  = models["rf_importance"] if imp_choice == "Random Forest" else models["gtb_importance"]
-    importance_dict = raw_importance.get("importance", raw_importance)
 
-    if isinstance(importance_dict, dict):
+    if raw_importance is None:
+        st.warning(
+            "Variable importance could not be computed — the Earth Engine request timed out. "
+            "Try reducing the number of trees or sample pixels and re-run."
+        )
+    else:
+        importance_dict = raw_importance.get("importance", raw_importance)
+
+    if raw_importance is not None and isinstance(importance_dict, dict):
         imp_df = (
             pd.DataFrame(list(importance_dict.items()), columns=["Variable", "Importance"])
             .sort_values("Importance", ascending=False)
@@ -1130,7 +1207,7 @@ with tab_importance:
 
         with st.expander("Full importance table"):
             st.dataframe(imp_df, width='stretch')
-    else:
+    elif raw_importance is not None:
         st.json(raw_importance)
 
 # ============================================================================
