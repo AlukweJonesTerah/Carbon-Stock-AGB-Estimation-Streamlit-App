@@ -564,14 +564,15 @@ def sample_and_split(_project_id, county_selection, num_pixels, train_split, see
     training_set = all_sampled.filter(ee.Filter.lt("random", train_split))
     testing_set  = all_sampled.filter(ee.Filter.gte("random", train_split))
 
+    n_train = round(num_pixels * train_split)
     return {
         "dependent_variable":   dependent_variable,
         "predictor_band_names": predictor_band_names,
         "training_set":  training_set,
         "testing_set":   testing_set,
-        "n_total": all_sampled.size().getInfo(),
-        "n_train": training_set.size().getInfo(),
-        "n_test":  testing_set.size().getInfo(),
+        "n_total": num_pixels,
+        "n_train": n_train,
+        "n_test":  num_pixels - n_train,
     }
 
 
