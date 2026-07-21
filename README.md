@@ -9,6 +9,8 @@ regression models.
 ## What it does
 
 - Lets you pick which Kenyan counties (ADM1) to include in the study area
+- Supports ESA CCI AGB reference years 2010 and 2015–2022, with satellite
+  predictor inputs composited through 2023
 - Builds the full predictor stack on Earth Engine (spectral indices, radar,
   terrain, climate, soil, canopy height, land-surface temperature)
 - Samples training/testing points and trains RF, GTB, and SVM regressors
@@ -19,6 +21,9 @@ regression models.
   held-out test set
 - Computes per-county zonal statistics (mean/min/max/sum), downloadable as CSV
 - Shows variable importance for RF and GTB
+- Includes a beginner-friendly Environmental Guide chat powered by Gemini, with
+  an optional local Ollama fallback for explaining maps, climate change,
+  emissions, carbon credits, markets, and uncertainty
 
 ## 1. Prerequisites
 
@@ -27,6 +32,14 @@ regression models.
   (sign up free at https://earthengine.google.com)
 - A **Google Cloud project** registered for Earth Engine use
   (any project ID works, e.g. one created at https://console.cloud.google.com)
+- Optional: a Gemini API key for the Learning Guide, or a locally running
+  Ollama instance for offline chat fallback
+
+### Learning Guide key setup
+
+Copy `.streamlit/secrets.example.toml` to `.streamlit/secrets.toml`, then add
+your Gemini key. The real secrets file is ignored by Git. You can also paste a
+key into the guide settings for the current browser session only.
 
 ## 2. Install
 
@@ -81,6 +94,8 @@ Then in the sidebar:
 - Results are cached per parameter combination (`st.cache_resource`), so
   re-running with the same settings is instant; changing any slider or
   county selection triggers a recompute.
+- Analysis settings are submitted as a single form, preventing a rerun while
+  you adjust controls. Variable importance is also fetched only when requested.
 - The validation and zonal-statistics tabs are computed on demand (via
   buttons) since they trigger additional Earth Engine reductions.
 
