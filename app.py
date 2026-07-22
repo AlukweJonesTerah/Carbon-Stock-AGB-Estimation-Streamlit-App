@@ -42,6 +42,12 @@ st.set_page_config(
     layout="wide",
 )
 
+# `_busy` is True for the duration of a long-running action (e.g. the main
+# "Run analysis" pipeline). While it's True, the buttons/inputs that trigger
+# another run are rendered disabled so a fast double-click (or fiddling with
+# settings mid-run) can't queue a second, overlapping execution.
+st.session_state.setdefault("_busy", False)
+
 # ----------------------------------------------------------------------------
 # THEME / CSS
 # ----------------------------------------------------------------------------
@@ -192,6 +198,9 @@ st.markdown("""
     border-radius: 12px;
     padding: 5px;
     border: 1px solid #b7dbbe;
+    box-sizing: border-box;
+    overflow-x: auto;
+    scroll-behavior: smooth;
 }
 [data-testid="stTabs"] [data-baseweb="tab"],
 [data-testid="stTabs"] button[role="tab"] {
@@ -203,6 +212,9 @@ st.markdown("""
     background: transparent !important;
     border: none !important;
     transition: all 0.15s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+    box-sizing: border-box;
 }
 [data-testid="stTabs"] [data-baseweb="tab"] *,
 [data-testid="stTabs"] button[role="tab"] * {
@@ -245,7 +257,9 @@ st.markdown("""
 .stTabs [data-baseweb="tab-list"] {
     background: #e3f1e6 !important;
     border: 1px solid #a9cfb0 !important;
-    padding-right: 2rem !important;
+    padding-left: 2.25rem !important;
+    padding-right: 2.25rem !important;
+    box-sizing: border-box !important;
     min-height: 3rem;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
@@ -271,8 +285,9 @@ st.markdown("""
 .stTabs [data-testid="stTabScrollButton"],
 .stTabs button[aria-label*="tab" i],
 .stTabs button[aria-label*="Tab" i] {
-    width: 1.9rem !important;
-    min-width: 1.9rem !important;
+    width: 2.25rem !important;
+    min-width: 2.25rem !important;
+    max-width: 2.25rem !important;
     height: 3rem !important;
     margin: 0 !important;
     border: none !important;
@@ -281,6 +296,8 @@ st.markdown("""
     color: #ffffff !important;
     box-shadow: none !important;
     opacity: 1 !important;
+    box-sizing: border-box !important;
+    flex-shrink: 0 !important;
 }
 .stTabs [data-testid="stTabScrollButton"]:hover,
 .stTabs button[aria-label*="tab" i]:hover,
@@ -441,6 +458,75 @@ st.markdown("""
 [data-testid="stRadio"] div[role="radiogroup"] label span,
 [data-testid="stCheckbox"] label span {
     color: var(--text-primary) !important;
+}
+
+/* ── Buttons: box sizing, wrapping, hover, disabled ──────── */
+[data-testid="stButton"] button {
+    box-sizing: border-box !important;
+    white-space: normal !important;
+    height: auto !important;
+    min-height: 2.75rem !important;
+    line-height: 1.3 !important;
+    padding: 0.55rem 1rem !important;
+    word-break: normal;
+    overflow-wrap: break-word;
+    transition: background 0.15s ease, border-color 0.15s ease, filter 0.15s ease;
+}
+[data-testid="stButton"] button p,
+[data-testid="stButton"] button span {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+}
+[data-testid="stMain"] [data-testid="stButton"] button[kind="secondary"]:hover {
+    background: #2d6a4f !important;
+    border-color: #2d6a4f !important;
+    color: #ffffff !important;
+}
+[data-testid="stMain"] [data-testid="stButton"] button[kind="secondary"]:hover p,
+[data-testid="stMain"] [data-testid="stButton"] button[kind="secondary"]:hover span {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+[data-testid="stMain"] [data-testid="stButton"] button[kind="primary"]:hover {
+    filter: brightness(1.08);
+}
+[data-testid="stButton"] button:disabled,
+[data-testid="stButton"] button[disabled] {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    filter: none !important;
+}
+[data-testid="stButton"] button:disabled:hover,
+[data-testid="stButton"] button[disabled]:hover {
+    background: inherit !important;
+}
+
+/* Replace the browser's default focus ring (often a stark red/blue box)
+   with a colour that matches the rest of the app. */
+button:focus-visible,
+[data-testid="stExpander"] summary:focus-visible,
+[data-baseweb="tab"]:focus-visible {
+    outline: 2px solid var(--green-mid) !important;
+    outline-offset: 2px !important;
+    box-shadow: none !important;
+}
+
+/* ── Number input: keep the box (and its +/- steppers) inside
+       its column instead of overflowing on narrow layouts ──── */
+[data-testid="stNumberInput"] {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden;
+}
+[data-testid="stNumberInput"] > div {
+    box-sizing: border-box !important;
+    width: 100% !important;
+}
+[data-testid="stNumberInput"] input {
+    box-sizing: border-box !important;
+    min-width: 0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1386,8 +1472,13 @@ with st.sidebar.form("analysis_configuration", border=False):
         svm_gamma = st.slider("Gamma", 0.01, 2.0, 0.6, step=0.01, key="svm_gamma")
         svm_cost  = st.slider("Cost", 1.0, 100.0, 10.0, step=1.0, key="svm_cost")
 
+    def _mark_analysis_busy():
+        st.session_state["_busy"] = True
+
     run_clicked = st.form_submit_button(
-        "Run analysis", type="primary", width="stretch", disabled=not ee_ready
+        "Run analysis", type="primary", width="stretch",
+        disabled=(not ee_ready) or st.session_state["_busy"],
+        on_click=_mark_analysis_busy,
     )
 
 if _extra_raw:
@@ -1401,7 +1492,7 @@ with st.sidebar.expander("Load saved configuration"):
     saved_config_file = st.file_uploader("Load a saved run", type="json", key="saved_run_file")
     load_saved_run = st.button(
         "Run saved configuration", width="stretch",
-        disabled=saved_config_file is None or not ee_ready,
+        disabled=saved_config_file is None or not ee_ready or st.session_state["_busy"],
     )
 
 if load_saved_run and saved_config_file is not None:
@@ -1465,6 +1556,7 @@ st.markdown("""
 # GUARD STATES
 # ----------------------------------------------------------------------------
 if not ee_ready:
+    st.session_state["_busy"] = False
     st.markdown("""
     <div class="welcome">
         <i class="fa-solid fa-satellite icon"></i>
@@ -1476,6 +1568,7 @@ if not ee_ready:
     st.stop()
 
 if not county_selection:
+    st.session_state["_busy"] = False
     st.warning("Select at least one county in the sidebar.")
     st.stop()
 
@@ -1506,6 +1599,7 @@ if run_clicked:
     st.session_state["analysis_started_at"] = time.perf_counter()
 
 if not st.session_state.get("analysis_ready"):
+    st.session_state["_busy"] = False
     st.markdown("""
     <div class="welcome">
         <i class="fa-solid fa-sliders icon"></i>
@@ -1531,41 +1625,45 @@ with st.sidebar.expander("Save current configuration"):
 # ----------------------------------------------------------------------------
 # BUILD PREDICTOR STACK
 # ----------------------------------------------------------------------------
-run_status = st.status("Preparing analysis", expanded=False)
-run_status.update(label="1/3 Building predictor stack", state="running")
-with st.spinner("Building predictor stack on Earth Engine…"):
-    stack = build_predictor_stack(project_id, p["county_selection"], p["agb_year"])
+st.session_state["_busy"] = True
+try:
+    run_status = st.status("Preparing analysis", expanded=False)
+    run_status.update(label="1/3 Building predictor stack", state="running")
+    with st.spinner("Building predictor stack on Earth Engine…"):
+        stack = build_predictor_stack(project_id, p["county_selection"], p["agb_year"])
 
-with st.spinner(f"Sampling {p['num_pixels']:,} pixels and splitting train / test…"):
-    run_status.update(label="2/3 Sampling training and testing pixels", state="running")
-    sample = sample_and_split(
-        project_id, p["county_selection"],
-        p["num_pixels"], p["train_split"], p["seed"], p["agb_year"],
-    )
+    with st.spinner(f"Sampling {p['num_pixels']:,} pixels and splitting train / test…"):
+        run_status.update(label="2/3 Sampling training and testing pixels", state="running")
+        sample = sample_and_split(
+            project_id, p["county_selection"],
+            p["num_pixels"], p["train_split"], p["seed"], p["agb_year"],
+        )
 
-col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("AGB Reference Year",   p["agb_year"])
-col2.metric("Selected counties",    len(p["county_selection"]))
-col3.metric("Sampled points",       f"{sample['n_total']:,}")
-col4.metric("Training points",      f"{sample['n_train']:,}")
-col5.metric("Testing points",       f"{sample['n_test']:,}")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("AGB Reference Year",   p["agb_year"])
+    col2.metric("Selected counties",    len(p["county_selection"]))
+    col3.metric("Sampled points",       f"{sample['n_total']:,}")
+    col4.metric("Training points",      f"{sample['n_train']:,}")
+    col5.metric("Testing points",       f"{sample['n_test']:,}")
 
-with st.spinner("Training Random Forest, GTB, and SVM models on Earth Engine…"):
-    run_status.update(label="3/3 Preparing model outputs", state="running")
-    models = train_models(
-        project_id, p["county_selection"],
-        p["num_pixels"], p["train_split"], p["seed"],
-        p["rf_trees"], p["rf_vars_per_split"], p["rf_min_leaf"],
-        p["svm_gamma"], p["svm_cost"],
-        p["gtb_trees"], p["gtb_shrinkage"], p["gtb_sampling_rate"], p["gtb_max_nodes"],
-        p["agb_year"],
-    )
+    with st.spinner("Training Random Forest, GTB, and SVM models on Earth Engine…"):
+        run_status.update(label="3/3 Preparing model outputs", state="running")
+        models = train_models(
+            project_id, p["county_selection"],
+            p["num_pixels"], p["train_split"], p["seed"],
+            p["rf_trees"], p["rf_vars_per_split"], p["rf_min_leaf"],
+            p["svm_gamma"], p["svm_cost"],
+            p["gtb_trees"], p["gtb_shrinkage"], p["gtb_sampling_rate"], p["gtb_max_nodes"],
+            p["agb_year"],
+        )
 
-if run_clicked:
-    st.session_state["last_preparation_seconds"] = (
-        time.perf_counter() - st.session_state["analysis_started_at"]
-    )
-run_status.update(label="Analysis ready", state="complete", expanded=False)
+    if run_clicked:
+        st.session_state["last_preparation_seconds"] = (
+            time.perf_counter() - st.session_state["analysis_started_at"]
+        )
+    run_status.update(label="Analysis ready", state="complete", expanded=False)
+finally:
+    st.session_state["_busy"] = False
 if st.session_state.get("last_preparation_seconds") is not None:
     st.caption(
         f"Run profile: {p.get('preset', 'Custom')} preset · "
@@ -1776,7 +1874,7 @@ with tab_briefing:
         "Generate a plain-language explanation of the selected counties, strongest tested model, "
         "uncertainty, county hotspots, and important cautions."
     )
-    if st.button("Generate map briefing", type="primary", key="btn_map_briefing"):
+    if st.button("Generate map briefing", type="primary", key="btn_map_briefing", disabled=st.session_state["_busy"]):
         st.session_state["map_briefing"] = build_map_briefing(
             p,
             validation_results=st.session_state.get("validation_results"),
@@ -1854,7 +1952,13 @@ with tab_guide:
     ]
     for column, quick_prompt in zip(quick_questions, quick_prompts):
         with column:
-            if st.button(quick_prompt.split("?")[0][:36], key=f"guide_{quick_prompts.index(quick_prompt)}"):
+            quick_label = quick_prompt if quick_prompt.endswith("?") else f"{quick_prompt.split('?')[0].strip()}?"
+            if st.button(
+                quick_label,
+                key=f"guide_{quick_prompts.index(quick_prompt)}",
+                disabled=st.session_state.get("_busy", False),
+                width="stretch",
+            ):
                 st.session_state["pending_guide_question"] = quick_prompt
 
     for message in st.session_state["learning_chat"]:
@@ -1966,7 +2070,7 @@ with tab_compare:
     )
 
     # ── Agreement metric (on demand) ─────────────────────────────────────────
-    if st.button("Compute mean model spread across study area"):
+    if st.button("Compute mean model spread across study area", disabled=st.session_state["_busy"]):
         with st.spinner("Reducing model spread on Earth Engine…"):
             try:
                 spread_result = model_spread.reduceRegion(
@@ -1998,7 +2102,7 @@ with tab_compare:
 
     # ── RF vs GTB difference map ─────────────────────────────────────────────
     st.markdown("**RF vs. GTB — Absolute Difference**")
-    if st.button("Render RF vs GTB difference map", key="btn_diff_map"):
+    if st.button("Render RF vs GTB difference map", key="btn_diff_map", disabled=st.session_state["_busy"]):
         st.session_state["show_diff_map"] = True
     if st.session_state.get("show_diff_map"):
         carbon_difference = (
@@ -2016,7 +2120,7 @@ with tab_compare:
 
     # ── 3-model spread map ───────────────────────────────────────────────────
     st.markdown("**3-Model Spread — Pixel-wise Standard Deviation (RF, GTB, SVM)**")
-    if st.button("Render 3-model spread map", key="btn_spread_map"):
+    if st.button("Render 3-model spread map", key="btn_spread_map", disabled=st.session_state["_busy"]):
         st.session_state["show_spread_map"] = True
     if st.session_state.get("show_spread_map"):
         with st.spinner("Rendering spread map…"):
@@ -2055,7 +2159,7 @@ with tab_restoration:
             help="An adjustable planning assumption, not a prediction from this app.",
         )
         scenario_years = st.slider("Restoration period (years)", 1, 30, 10)
-        calculate_scenario = st.button("Calculate restoration scenario", type="primary", key="calculate_restoration")
+        calculate_scenario = st.button("Calculate restoration scenario", type="primary", key="calculate_restoration", disabled=st.session_state["_busy"])
 
     with scenario_map_col:
         restoration_map = geemap.Map(center=[0.3, 36.0], zoom=7, plugin_Draw=True)
@@ -2142,7 +2246,7 @@ with tab_tools:
             "Compare reference years", options=AGB_YEARS_AVAIL,
             value=("2010", "2022"), key="change_years",
         )
-        if st.button("Render carbon change map", key="btn_change_map"):
+        if st.button("Render carbon change map", key="btn_change_map", disabled=st.session_state["_busy"]):
             st.session_state["show_change_map"] = True
         if st.session_state.get("show_change_map"):
             start_carbon = (
@@ -2206,7 +2310,7 @@ with tab_tools:
         help="A county is flagged only when its mean reference carbon estimate changes by at least this amount.",
         key="watchlist_threshold",
     )
-    if st.button("Check watchlist for change", type="primary", key="check_watchlist"):
+    if st.button("Check watchlist for change", type="primary", key="check_watchlist", disabled=st.session_state["_busy"]):
         if not watched_counties:
             st.warning("Choose at least one county to watch.")
         else:
@@ -2244,7 +2348,7 @@ with tab_tools:
         st.caption("Required columns: `longitude`, `latitude`, and `observed_carbon` (t C/ha). Up to 500 rows are sampled.")
         if {"longitude", "latitude", "observed_carbon"}.issubset(field_df.columns):
             field_model = st.selectbox("Model to validate", list(MODEL_IMAGES), key="field_model")
-            if st.button("Validate uploaded plots", key="btn_field_validation"):
+            if st.button("Validate uploaded plots", key="btn_field_validation", disabled=st.session_state["_busy"]):
                 with st.spinner("Sampling model predictions at plot locations…"):
                     try:
                         records = field_df[["longitude", "latitude", "observed_carbon"]].dropna().head(500)
@@ -2302,7 +2406,7 @@ with tab_validation:
         unsafe_allow_html=True,
     )
 
-    if st.button("1. Compute validation metrics", type="primary", width='content'):
+    if st.button("1. Compute validation metrics", type="primary", width='content', disabled=st.session_state["_busy"]):
         results = {}
         failed = []
         for model_name, model_key in [
@@ -2370,7 +2474,7 @@ with tab_quality:
         "This is an explainable screening score for the current run. It helps identify missing checks before you interpret "
         "or compare results; it is not a scientific accuracy certificate."
     )
-    if st.button("Assess run data quality", type="primary", key="assess_data_quality"):
+    if st.button("Assess run data quality", type="primary", key="assess_data_quality", disabled=st.session_state["_busy"]):
         st.session_state["data_quality_assessment"] = assess_data_quality(
             p,
             validation_results=st.session_state.get("validation_results"),
@@ -2406,7 +2510,7 @@ with tab_zonal:
 
     zonal_model_choice = st.selectbox("Model for zonal stats:", list(MODEL_IMAGES.keys()),
                                       key="zonal_model")
-    if st.button("Compute zonal statistics"):
+    if st.button("Compute zonal statistics", disabled=st.session_state["_busy"]):
         with st.spinner("Reducing regions on Earth Engine…"):
             try:
                 zonal = MODEL_IMAGES[zonal_model_choice].reduceRegions(
@@ -2482,7 +2586,7 @@ with tab_importance:
 
     imp_choice = st.radio("Model:", ["Random Forest", "Gradient Tree Boosting"], horizontal=True)
     importance_model = models["rf_model"] if imp_choice == "Random Forest" else models["gtb_model"]
-    if st.button("Load variable importance", key="btn_variable_importance"):
+    if st.button("Load variable importance", key="btn_variable_importance", disabled=st.session_state["_busy"]):
         with st.spinner(f"Fetching {imp_choice} importance from Earth Engine…"):
             try:
                 st.session_state.setdefault("importance_results", {})[imp_choice] = (
@@ -2549,7 +2653,7 @@ with tab_report:
         export_model = st.selectbox("Map to export", list(MODEL_IMAGES), key="export_model")
         export_scale = st.select_slider("Export scale (m)", options=[100, 300, 500, 1000], value=300)
         export_folder = st.text_input("Google Drive folder", value="EarthEngineExports")
-        if st.button("Create GeoTIFF export task", key="btn_geotiff_export"):
+        if st.button("Create GeoTIFF export task", key="btn_geotiff_export", disabled=st.session_state["_busy"]):
             try:
                 export_slug = "".join(
                     character.lower() if character.isalnum() else "_" for character in export_model
