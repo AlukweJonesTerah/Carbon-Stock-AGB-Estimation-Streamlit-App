@@ -275,24 +275,23 @@ st.markdown("""
     min-width: 1.9rem !important;
     height: 3rem !important;
     margin: 0 !important;
-    border: 1px solid #2d6a4f !important;
-    border-radius: 0 10px 10px 0 !important;
-    background: #2d6a4f !important;
-    color: #ffffff !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #1a472a !important;
     box-shadow: none !important;
     opacity: 1 !important;
 }
 .stTabs [data-testid="stTabScrollButton"]:hover,
 .stTabs button[aria-label*="tab" i]:hover,
 .stTabs button[aria-label*="Tab" i]:hover {
-    background: #1a472a !important;
-    border-color: #1a472a !important;
+    background: #c6e5cb !important;
 }
 .stTabs [data-testid="stTabScrollButton"] svg,
 .stTabs button[aria-label*="tab" i] svg,
 .stTabs button[aria-label*="Tab" i] svg {
-    fill: #ffffff !important;
-    stroke: #ffffff !important;
+    fill: #1a472a !important;
+    stroke: #1a472a !important;
 }
 
 /* ── Section headers ─────────────────────────────────────── */
