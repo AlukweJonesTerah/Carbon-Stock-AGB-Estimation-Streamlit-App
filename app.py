@@ -187,9 +187,6 @@ st.markdown("""
 /* ── Tabs ────────────────────────────────────────────────── */
 [data-testid="stTabs"] [data-baseweb="tab-list"],
 [data-testid="stTabs"] [role="tablist"] {
-    /* Keep this custom light control readable when the device prefers dark mode. */
-    color-scheme: light;
-    forced-color-adjust: none;
     gap: 4px;
     background: #dceee0;
     border-radius: 12px;
@@ -203,8 +200,6 @@ st.markdown("""
     font-weight: 600;
     font-size: 0.88rem;
     color: #274b39 !important;
-    -webkit-text-fill-color: #274b39 !important;
-    forced-color-adjust: none;
     background: transparent !important;
     border: none !important;
     transition: all 0.15s ease;
@@ -246,18 +241,6 @@ st.markdown("""
     -webkit-text-fill-color: #182d22 !important;
     opacity: 1 !important;
     text-shadow: none !important;
-}
-/* Some mobile Streamlit builds place the label in a div or a pseudo-element.
-   Give every possible label layer the same explicit dark ink. */
-.stTabs button[role="tab"] div,
-.stTabs [data-baseweb="tab"] div,
-.stTabs button[role="tab"]::before,
-.stTabs button[role="tab"]::after,
-.stTabs [data-baseweb="tab"]::before,
-.stTabs [data-baseweb="tab"]::after {
-    color: #182d22 !important;
-    -webkit-text-fill-color: #182d22 !important;
-    opacity: 1 !important;
 }
 .stTabs [data-baseweb="tab-list"] {
     background: #e3f1e6 !important;
@@ -320,7 +303,6 @@ st.markdown("""
 .stTabs button[aria-label*="tab" i] svg,
 .stTabs button[aria-label*="Tab" i] svg {
     fill: #ffffff !important;
-    /*stroke: #ffffff !important;*/
 }
 
 /* ── Section headers ─────────────────────────────────────── */
