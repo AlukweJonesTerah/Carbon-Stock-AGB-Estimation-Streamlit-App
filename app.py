@@ -56,6 +56,7 @@ st.markdown("""
 @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css');
 /* ── Global tokens ───────────────────────────────────────── */
 :root {
+    color-scheme: light;
     --green-dark:   #1a472a;
     --green-mid:    #2d6a4f;
     --green-light:  #52b788;
@@ -72,6 +73,37 @@ st.markdown("""
 
 /* ── App background ──────────────────────────────────────── */
 .stApp { background: #f4faf5; }
+
+/* ── Default text colour for the main content area ───────────
+   Plain st.markdown() text and headers (#### ...) don't get a
+   colour from any rule below — they were inheriting the base
+   Streamlit theme's default text colour, which is meant for a
+   dark background and is invisible against this light theme.
+   This is the fix for text that only became visible when
+   selected/highlighted. ─────────────────────────────────── */
+[data-testid="stMain"] [data-testid="stMarkdownContainer"],
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] li,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] span,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] strong,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] em,
+[data-testid="stMain"] [data-testid="stText"],
+[data-testid="stMain"] [data-testid="stText"] p {
+    color: var(--text-primary) !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+}
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] h1,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] h2,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] h3,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] h4,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] h5,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] h6 {
+    color: var(--green-dark) !important;
+    -webkit-text-fill-color: var(--green-dark) !important;
+}
+/* .sec-hdr / .info-card / .welcome etc. set their own colours
+   further down and already win via the cascade, so this default
+   only fills in the elements nothing else was styling. */
 
 /* ── Sidebar ─────────────────────────────────────────────── */
 [data-testid="stSidebar"] {
@@ -217,10 +249,21 @@ st.markdown("""
     box-sizing: border-box;
 }
 [data-testid="stTabs"] [data-baseweb="tab"] *,
-[data-testid="stTabs"] button[role="tab"] * {
+[data-testid="stTabs"] button[role="tab"] *,
+[data-testid="stTabs"] [data-baseweb="tab"] p,
+[data-testid="stTabs"] [data-baseweb="tab"] span,
+[data-testid="stTabs"] [data-baseweb="tab"] div,
+[data-testid="stTabs"] button[role="tab"] p,
+[data-testid="stTabs"] button[role="tab"] span,
+[data-testid="stTabs"] button[role="tab"] div {
     color: #274b39 !important;
     -webkit-text-fill-color: #274b39 !important;
     opacity: 1 !important;
+}
+[data-testid="stTabs"] [aria-selected="true"] *,
+[data-testid="stTabs"] button[aria-selected="true"] * {
+    color: var(--green-dark) !important;
+    -webkit-text-fill-color: var(--green-dark) !important;
 }
 [data-testid="stTabs"] [data-baseweb="tab"]:hover,
 [data-testid="stTabs"] button[role="tab"]:hover {
@@ -1570,6 +1613,8 @@ if not ee_ready:
 if not county_selection:
     st.session_state["_busy"] = False
     st.warning("Select at least one county in the sidebar.")
+    if run_clicked:
+        st.rerun()
     st.stop()
 
 if run_clicked:
@@ -1664,6 +1709,14 @@ try:
     run_status.update(label="Analysis ready", state="complete", expanded=False)
 finally:
     st.session_state["_busy"] = False
+    if run_clicked:
+        # The button above was rendered disabled at the start of this exact
+        # run (the on_click callback set _busy before the sidebar drew it).
+        # Resetting the flag doesn't retroactively update that already-sent
+        # widget, so trigger one more rerun to redraw the sidebar with the
+        # button enabled again. This only fires right after a fresh submit,
+        # not on every later interaction, so it can't loop.
+        st.rerun()
 if st.session_state.get("last_preparation_seconds") is not None:
     st.caption(
         f"Run profile: {p.get('preset', 'Custom')} preset · "
