@@ -185,29 +185,48 @@ st.markdown("""
 }
 
 /* ── Tabs ────────────────────────────────────────────────── */
-.stTabs [data-baseweb="tab-list"] {
+[data-testid="stTabs"] [data-baseweb="tab-list"],
+[data-testid="stTabs"] [role="tablist"] {
     gap: 4px;
     background: #dceee0;
     border-radius: 12px;
     padding: 5px;
-    border: none;
+    border: 1px solid #b7dbbe;
 }
-.stTabs [data-baseweb="tab"] {
+[data-testid="stTabs"] [data-baseweb="tab"],
+[data-testid="stTabs"] button[role="tab"] {
     border-radius: 9px;
     padding: 0.45rem 1.1rem;
     font-weight: 600;
     font-size: 0.88rem;
-    color: var(--text-muted) !important;
+    color: #274b39 !important;
     background: transparent !important;
     border: none !important;
     transition: all 0.15s ease;
 }
-.stTabs [aria-selected="true"] {
+[data-testid="stTabs"] [data-baseweb="tab"] *,
+[data-testid="stTabs"] button[role="tab"] * {
+    color: #274b39 !important;
+    -webkit-text-fill-color: #274b39 !important;
+    opacity: 1 !important;
+}
+[data-testid="stTabs"] [data-baseweb="tab"]:hover,
+[data-testid="stTabs"] button[role="tab"]:hover {
+    background: #c6e5cb !important;
+    color: #123621 !important;
+}
+[data-testid="stTabs"] [aria-selected="true"] {
     background: #ffffff !important;
     color: var(--green-dark) !important;
     box-shadow: 0 1px 5px var(--shadow) !important;
 }
-.stTabs [data-baseweb="tab-panel"] {
+[data-testid="stTabs"] [aria-selected="true"] *,
+[data-testid="stTabs"] [aria-selected="true"] p {
+    color: #1a472a !important;
+    -webkit-text-fill-color: #1a472a !important;
+    font-weight: 700 !important;
+}
+[data-testid="stTabs"] [data-baseweb="tab-panel"] {
     padding-top: 1.25rem;
 }
 
