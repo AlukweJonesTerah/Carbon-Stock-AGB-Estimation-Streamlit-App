@@ -229,6 +229,71 @@ st.markdown("""
 [data-testid="stTabs"] [data-baseweb="tab-panel"] {
     padding-top: 1.25rem;
 }
+/* Streamlit versions render the visible label inside nested paragraph/span
+   elements, so style those directly instead of relying on colour inheritance. */
+.stTabs button[data-baseweb="tab"] p,
+.stTabs button[data-baseweb="tab"] span,
+.stTabs button[role="tab"] p,
+.stTabs button[role="tab"] span,
+.stTabs [data-baseweb="tab"] p,
+.stTabs [data-baseweb="tab"] span {
+    color: #182d22 !important;
+    -webkit-text-fill-color: #182d22 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+.stTabs [data-baseweb="tab-list"] {
+    background: #e3f1e6 !important;
+    border: 1px solid #a9cfb0 !important;
+    padding-right: 2rem !important;
+    min-height: 3rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+.stTabs button[data-baseweb="tab"]:hover p,
+.stTabs button[role="tab"]:hover p,
+.stTabs [data-baseweb="tab"]:hover span {
+    color: #0d321c !important;
+    -webkit-text-fill-color: #0d321c !important;
+}
+.stTabs [aria-selected="true"] p,
+.stTabs [aria-selected="true"] span {
+    color: #0f3d20 !important;
+    -webkit-text-fill-color: #0f3d20 !important;
+}
+[data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] p {
+    color: #4b5e52 !important;
+    -webkit-text-fill-color: #4b5e52 !important;
+    opacity: 1 !important;
+}
+/* Keep Streamlit's overflow navigation visible, but make it part of the
+   tab control rather than a stark black block at the right edge. */
+.stTabs [data-testid="stTabScrollButton"],
+.stTabs button[aria-label*="tab" i],
+.stTabs button[aria-label*="Tab" i] {
+    width: 1.9rem !important;
+    min-width: 1.9rem !important;
+    height: 3rem !important;
+    margin: 0 !important;
+    border: 1px solid #2d6a4f !important;
+    border-radius: 0 10px 10px 0 !important;
+    background: #2d6a4f !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+}
+.stTabs [data-testid="stTabScrollButton"]:hover,
+.stTabs button[aria-label*="tab" i]:hover,
+.stTabs button[aria-label*="Tab" i]:hover {
+    background: #1a472a !important;
+    border-color: #1a472a !important;
+}
+.stTabs [data-testid="stTabScrollButton"] svg,
+.stTabs button[aria-label*="tab" i] svg,
+.stTabs button[aria-label*="Tab" i] svg {
+    fill: #ffffff !important;
+    stroke: #ffffff !important;
+}
 
 /* ── Section headers ─────────────────────────────────────── */
 .sec-hdr {
