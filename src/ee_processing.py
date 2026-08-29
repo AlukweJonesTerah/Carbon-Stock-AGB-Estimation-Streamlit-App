@@ -51,9 +51,17 @@ def build_predictor_stack(_project_id: str, county_selection: tuple[str, ...], a
         .filterBounds(geom)
         .mode()
     )
-    landcover = dynamic_world_label.eq(1)
-    masked_biomass = biomass_data.updateMask(landcover)
-    biomass_mask   = masked_biomass.mask().gt(0)
+    
+    # Only mask out Water (0), Urban/Built (6), and Snow/Ice (8).
+    # Previously this was strictly .eq(1) (Trees), which completely deleted the 
+    # entire carbon map for Eastern Kenya's savannas and shrublands.
+    invalid_landcover = dynamic_world_label.eq(0).Or(dynamic_world_label.eq(6)).Or(dynamic_world_label.eq(8))
+    valid_landcover = invalid_landcover.Not()
+    
+    masked_biomass = biomass_data.updateMask(valid_landcover)
+    # Allow ESA AGB values of 0 (deserts) to be trained on so the model 
+    # learns to predict 0 in arid regions instead of ignoring them completely.
+    biomass_mask   = masked_biomass.mask().gte(0)
 
     dem       = ee.Image("USGS/SRTMGL1_003")
     elevation = dem.select("elevation")
@@ -200,7 +208,7 @@ def sample_and_split(_project_id, county_selection, num_pixels, train_split, see
         numPoints=points_per_class,
         classBand='worldcover_class',
         region=selected_fc.geometry(), 
-        scale=1000, # Subsampling at 1km is 10x faster than 300m for country-scale stratification
+        scale=2500, # Increased from 1000m to 2500m for lightning-fast spatial extraction over massive regions like Eastern Kenya
         geometries=True, 
         tileScale=16,
     )
@@ -267,7 +275,7 @@ def train_models(
     }
 
 @st.cache_resource(show_spinner=False)
-def compute_regional_statistics(_project_id, _county_selection, _estimated_carbon, _forest_loss, _selected_fc):
+def compute_regional_statistics(_project_id, _county_selection, _estimated_carbon, _forest_loss, _selected_fc, model_name):
     pixel_area_ha = ee.Image.pixelArea().divide(10000)
     total_carbon = _estimated_carbon.multiply(pixel_area_ha)
     deforested_area = _forest_loss.gt(0).multiply(pixel_area_ha)
