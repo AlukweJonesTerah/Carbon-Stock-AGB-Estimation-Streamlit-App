@@ -183,6 +183,10 @@ with st.sidebar.form("analysis_configuration", border=False):
         svm_gamma = st.slider("Gamma", 0.01, 2.0, 0.6, step=0.01, key="svm_gamma")
         svm_cost  = st.slider("Cost", 1.0, 100.0, 10.0, step=1.0, key="svm_cost")
 
+    st.markdown("**Automation**")
+    auto_compute = st.checkbox("Fully automate insights", value=False, 
+                               help="Automatically runs Zonal Statistics, Validation Metrics, and the AI Map Briefing without requiring manual clicks. (Takes ~45s extra)")
+
     def _mark_analysis_busy():
         st.session_state["_busy"] = True
 
@@ -409,6 +413,8 @@ try:
 finally:
     st.session_state["_busy"] = False
     if run_clicked:
+        if auto_compute:
+            st.session_state["_force_auto_compute"] = True
         with global_state["lock"]:
             global_state["active_runs"] = max(0, global_state["active_runs"] - 1)
         # The button above was rendered disabled at the start of this exact
@@ -419,11 +425,15 @@ finally:
         # not on every later interaction, so it can't loop.
         st.rerun()
 if st.session_state.get("last_preparation_seconds") is not None:
-    st.caption(
+    _caption_str = (
         f"Run profile: {p.get('preset', 'Custom')} preset · "
-        f"prepared in {st.session_state['last_preparation_seconds']:.1f}s · "
-        "validation and feature importance load only when requested."
+        f"prepared in {st.session_state['last_preparation_seconds']:.1f}s"
     )
+    if auto_compute:
+        _caption_str += " · fully automated insights enabled."
+    else:
+        _caption_str += " · validation and feature importance load only when requested."
+    st.caption(_caption_str)
 
 predictor_variables  = stack["predictor_variables"]
 selected_fc          = stack["selected_fc"]
@@ -510,6 +520,11 @@ MODEL_IMAGES = {
     "Support Vector Machine":  estimated_carbon_svm,
     "Smart Weighted Ensemble": estimated_carbon_ensemble,
 }
+
+if st.session_state.pop("_force_auto_compute", False):
+    st.session_state["_trigger_briefing"] = True
+    st.session_state["_trigger_validation"] = True
+    st.session_state["_trigger_zonal"] = True
 
 # ============================================================================
 # TABS
@@ -679,8 +694,9 @@ with tab_briefing:
         "Generate a plain-language explanation of the selected counties, strongest tested model, "
         "uncertainty, county hotspots, and important cautions."
     )
-    if st.button("Generate map briefing", type="primary", key="btn_map_briefing", disabled=st.session_state["_busy"]):
-        with st.spinner("Generating Map Briefing..."):
+    _briefing_clicked = st.button("Generate map briefing", type="primary", key="btn_map_briefing", disabled=st.session_state["_busy"])
+    if _briefing_clicked or st.session_state.pop("_trigger_briefing", False):
+        with st.spinner("Analyzing data and generating executive briefing via Gemini…"):
             fallback_briefing = build_map_briefing(
                 p,
                 validation_results=st.session_state.get("validation_results"),
@@ -1372,7 +1388,8 @@ with tab_validation:
         unsafe_allow_html=True,
     )
 
-    if st.button("1. Compute validation metrics", type="primary", width='content', disabled=st.session_state["_busy"]):
+    _val_clicked = st.button("1. Compute validation metrics", type="primary", width='content', disabled=st.session_state["_busy"])
+    if _val_clicked or st.session_state.pop("_trigger_validation", False):
         results = {}
         failed = []
         for model_name, model_key in [
@@ -1488,7 +1505,8 @@ with tab_zonal:
 
     zonal_model_choice = st.selectbox("Model for zonal stats:", list(MODEL_IMAGES.keys()),
                                       key="zonal_model")
-    if st.button("Compute zonal statistics", disabled=st.session_state["_busy"]):
+    _zonal_clicked = st.button("Compute zonal statistics", disabled=st.session_state["_busy"])
+    if _zonal_clicked or st.session_state.pop("_trigger_zonal", False):
         with st.spinner("Reducing regions on Earth Engine…"):
             try:
                 # Mathematically correct sum = mean (t/ha) * area (ha). ReduceRegions sum on arbitrary pixels is incorrect.
