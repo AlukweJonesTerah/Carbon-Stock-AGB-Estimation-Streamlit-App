@@ -2,7 +2,7 @@
 
 A Streamlit port of the Google Earth Engine notebook for estimating
 above-ground biomass (AGB) carbon stock across selected Kenyan counties,
-using Sentinel-1/2, SRTM, WorldClim, PALSAR, soil, and canopy-height data
+using Sentinel-1/2, SRTM, ERA5-Land, PALSAR, ESA WorldCover, Hansen GFC, soil, and canopy-height data
 as predictors, with Random Forest, Gradient Tree Boosting, and SVM
 regression models.
 
